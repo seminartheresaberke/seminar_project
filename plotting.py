@@ -20,43 +20,35 @@ import pandas as pd
 # FIGURE 4
 # ---------------------------------------------------------
 
-def plot_figure4(mean_M: pd.DataFrame, mean_H: dict, task_name="Task"):
+def plot_figure3(mean_M: pd.DataFrame, mean_H: dict, task_name="Task"):
     """
-    Produce Figure 4-like plot:
-    Δ = mean(M(x)) - mean(H(x)) for lexical, syntactic, semantic probes.
-    
-    Inputs:
-        mean_M: DataFrame with mean M measures per strategy
-        mean_H: dict with H baseline
+    Reproduce Figure 3 from the paper:
+    Distribution of Δ = μM(x) - μH(x) across instances.
     """
 
-    probes = ["lexical", "syntactic", "semantic"]
+    probes = ["Lexical variability", "Syntactic variability", "Semantic variability"]
     probe_cols = ["M_lexical", "M_syntactic", "M_semantic"]
 
-    # Only plot Δ for strategies except human
-    strategies = [s for s in mean_M["strategy"].unique() if s != "human"]
-
+    # For each probe, compute Δ across strategies
     deltas = []
-
-    for strat in strategies:
-        row = mean_M[mean_M["strategy"] == strat].iloc[0]
+    for _, row in mean_M.iterrows():
         deltas.append([
             row["M_lexical"] - mean_H["H_lexical"],
             row["M_syntactic"] - mean_H["H_syntactic"],
-            row["M_semantic"] - mean_H["H_semantic"],
+            row["M_semantic"] - mean_H["H_semantic"]
         ])
 
     deltas = np.array(deltas)
 
-    plt.figure(figsize=(10, 5))
-    for i, strat in enumerate(strategies):
-        plt.plot(probes, deltas[i], marker='o', label=strat)
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4))
 
-    plt.title(f"{task_name}: Mean Difference Δ = E[M] - E[H]")
-    plt.xlabel("Probe")
-    plt.ylabel("Δ")
-    plt.legend()
-    plt.grid(True)
+    for i, ax in enumerate(axes):
+        ax.boxplot(deltas[:, i], vert=False, patch_artist=True,
+                   boxprops=dict(facecolor="orange", alpha=0.7))
+        ax.set_title(f"{probes[i]} Δ = μM - μH")
+        ax.set_xlabel("Distance difference")
+
+    plt.suptitle(f"Figure 3 — {task_name}")
     plt.tight_layout()
     plt.show()
 
