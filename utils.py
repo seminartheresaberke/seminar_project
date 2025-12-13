@@ -25,6 +25,7 @@ import torch
 from scipy.stats import wasserstein_distance
 import spacy
 from sentence_transformers import SentenceTransformer, util as st_util
+from collections import Counter
 
 
 # ---------------------------------------------------------------------
@@ -47,6 +48,35 @@ def ngrams(tokens: Sequence[str], n: int) -> List[Tuple[str, ...]]:
     return [tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1)]
 
 
+def multiset_ngram_distance(
+    ngrams1: List[Tuple[str, ...]],
+    ngrams2: List[Tuple[str, ...]],
+) -> float:
+    """
+    Paper-style distance:
+    (# non-matching n-gram occurrences) / (total # n-grams in both strings)
+    """
+    N1 = len(ngrams1)
+    N2 = len(ngrams2)
+    denom = N1 + N2
+
+    # If both strings are too short to form n-grams, treat them as identical (distance = 0)
+    if denom == 0:
+        return 0.0
+
+    # Count n-gram occurrences
+    c1 = Counter(ngrams1)
+    c2 = Counter(ngrams2)
+
+    # Intersection size = sum of minimum counts per n-gram
+    intersection = sum(min(c1[g], c2[g]) for g in c1.keys() | c2.keys())
+
+    # Non-matching occurrences: (N1 - intersection) + (N2 - intersection)
+    non_matching = denom - 2 * intersection
+
+    return non_matching / denom
+
+
 # ---------------------------------------------------------------------
 # Distance probes
 # ---------------------------------------------------------------------
@@ -56,13 +86,17 @@ class DistanceProbes:
     """
     Encapsulates the three probes used in the paper:
 
-    - lexical: unigram distance
-    - syntactic: POS bigram distance
+    - lexical: word n-grams
+    - syntactic: POS n-grams
     - semantic: SBERT cosine distance
     """
+    # Used for POS tagging in syntactic distance
     nlp: spacy.language.Language
+
+    # Used to compute sentence embeddings for semantic distance
     sbert: SentenceTransformer
 
+    '''
     def lexical_distance(self, s1: str, s2: str) -> float:
         """Unigram Jaccard-like distance between word sets."""
         t1 = tokenize_words(s1)
@@ -77,6 +111,7 @@ class DistanceProbes:
 
         non_matching = len(union - (set1 & set2))
         return non_matching / len(union)
+    
 
     def syntactic_distance(self, s1: str, s2: str) -> float:
         """POS bigram distance (Jaccard-like)."""
@@ -95,6 +130,37 @@ class DistanceProbes:
 
         non_matching = len(union - (bigrams1 & bigrams2))
         return non_matching / len(union)
+    '''
+
+    def lexical_distance(self, s1: str, s2: str, n: int = 1) -> float:
+        """ Compute lexical n-gram distance between two strings """
+        # Tokenize both strings into words
+        tokens1 = tokenize_words(s1)
+        tokens2 = tokenize_words(s2)
+
+        # Extract contiguous word n-grams
+        ng1 = ngrams(tokens1, n)
+        ng2 = ngrams(tokens2, n)
+
+        # Compute multiset n-gram distance
+        return multiset_ngram_distance(ng1, ng2)
+
+    def syntactic_distance(self, s1: str, s2: str, n: int = 2) -> float:
+        """POS n-gram distance between two strings."""
+        # Parse both strings with spaCy
+        doc1 = self.nlp(s1)
+        doc2 = self.nlp(s2)
+
+        # Extract POS tag sequences
+        pos1 = [t.pos_ for t in doc1]
+        pos2 = [t.pos_ for t in doc2]
+
+        # Build POS n-grams
+        ng1 = ngrams(pos1, n)
+        ng2 = ngrams(pos2, n)
+
+        # Compute multiset n-gram distance
+        return multiset_ngram_distance(ng1, ng2)
 
     def semantic_distance(self, s1: str, s2: str) -> float:
         """Cosine distance between SBERT sentence embeddings."""
