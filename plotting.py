@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 # ---------------------------------------------------------
 # FIGURE 4
 # ---------------------------------------------------------
@@ -68,22 +67,29 @@ def plot_figure5(mean_W_with_human: pd.DataFrame, task_name="Task"):
     strategy | W_lexical | W_syntactic | W_semantic
     """
 
+    def strategy_to_color(strategy: str) -> str:
+        if strategy == "human":
+            return "red"
+        if strategy == "ancestral":
+            return "blue"
+        if strategy.startswith("top_k"):
+            return "gray"
+        if strategy.startswith("top_p"):
+            return "orange"
+        if strategy.startswith("temp"):
+            return "purple"
+        if strategy.startswith("locally_typical"):
+            return "green"
+        return "gray"
+
     probe_names = ["Cosine distance", "POS bigram distance", "Unigram distance"]
     probe_cols  = ["W_semantic", "W_syntactic", "W_lexical"]
-
-    colors = {
-        "human": "red",
-        "ancestral": "blue",
-        "top_k": "green",
-        "top_p": "orange",
-        "temperature": "purple",
-    }
 
     plt.figure(figsize=(10, 5))
 
     for _, row in mean_W_with_human.iterrows():
         strat = row["strategy"]
-        color = colors.get(strat, "gray")
+        color = strategy_to_color(strat)
         for i, col in enumerate(probe_cols):
             x = row[col]
             plt.scatter(x, i, s=80, color=color, label=strat)

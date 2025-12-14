@@ -96,7 +96,7 @@ class DistanceProbes:
     # Used to compute sentence embeddings for semantic distance
     sbert: SentenceTransformer
 
-    '''
+    
     def lexical_distance(self, s1: str, s2: str) -> float:
         """Unigram Jaccard-like distance between word sets."""
         t1 = tokenize_words(s1)
@@ -130,8 +130,8 @@ class DistanceProbes:
 
         non_matching = len(union - (bigrams1 & bigrams2))
         return non_matching / len(union)
+    
     '''
-
     def lexical_distance(self, s1: str, s2: str, n: int = 1) -> float:
         """ Compute lexical n-gram distance between two strings """
         # Tokenize both strings into words
@@ -161,6 +161,7 @@ class DistanceProbes:
 
         # Compute multiset n-gram distance
         return multiset_ngram_distance(ng1, ng2)
+    '''
 
     def semantic_distance(self, s1: str, s2: str) -> float:
         """Cosine distance between SBERT sentence embeddings."""
