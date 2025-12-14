@@ -44,6 +44,7 @@ def plot_figure3(mean_M: pd.DataFrame, mean_H: dict, task_name="Task"):
     for i, ax in enumerate(axes):
         ax.boxplot(deltas[:, i], vert=False, patch_artist=True,
                    boxprops=dict(facecolor="orange", alpha=0.7))
+        ax.set_xlim(-1,1)
         ax.set_title(f"{probes[i]} Δ = μM - μH")
         ax.set_xlabel("Distance difference")
 
