@@ -14,43 +14,8 @@ Usage:
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-# ---------------------------------------------------------
-# FIGURE 4
-# ---------------------------------------------------------
-
-def plot_figure3(mean_M: pd.DataFrame, mean_H: dict, task_name="Task"):
-    """
-    Reproduce Figure 3 from the paper:
-    Distribution of Δ = μM(x) - μH(x) across instances.
-    """
-
-    probes = ["Lexical variability", "Syntactic variability", "Semantic variability"]
-    probe_cols = ["M_lexical", "M_syntactic", "M_semantic"]
-
-    # For each probe, compute Δ across strategies
-    deltas = []
-    for _, row in mean_M.iterrows():
-        deltas.append([
-            row["M_lexical"] - mean_H["H_lexical"],
-            row["M_syntactic"] - mean_H["H_syntactic"],
-            row["M_semantic"] - mean_H["H_semantic"]
-        ])
-
-    deltas = np.array(deltas)
-
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4))
-
-    for i, ax in enumerate(axes):
-        ax.boxplot(deltas[:, i], vert=False, patch_artist=True,
-                   boxprops=dict(facecolor="orange", alpha=0.7))
-        ax.set_xlim(-1,1)
-        ax.set_title(f"{probes[i]} Δ = μM - μH")
-        ax.set_xlabel("Distance difference")
-
-    plt.suptitle(f"Figure 3 — {task_name}")
-    plt.tight_layout()
-    plt.show()
+import ast
+import seaborn as sns
 
 
 # ---------------------------------------------------------
@@ -143,3 +108,146 @@ def plot_figure6(all_W: list, task_name="Task"):
     fig.suptitle(f"Task = {task_name}: Distribution of Wasserstein Distances")
     plt.tight_layout()
     plt.show()
+
+
+def plot_figure3_from_deltas(df, task_name="Task", label="μM(x) − μH(x)"):
+    probes = ["Lexical variability", "Syntactic variability", "Semantic variability"]
+    cols = ["delta_lexical", "delta_syntactic", "delta_semantic"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4))
+
+    for i, ax in enumerate(axes):
+        ax.boxplot(
+            df[cols[i]],
+            vert=False,
+            patch_artist=True,
+            boxprops=dict(facecolor="orange", alpha=0.7),
+        )
+        ax.axvline(0, color="black", linewidth=1)
+        ax.set_xlim(-0.8, 0.8)
+        ax.set_ylim(0.9,1.1)
+        ax.set_title(probes[i])
+        ax.set_xlabel(label)
+
+    plt.suptitle(f"{task_name} Variability Across Probes")
+    plt.tight_layout()
+    plt.show()
+
+
+
+def plot_human_vs_model_histograms(
+    df_H,
+    df_M,
+    *,
+    task_title="Text Simplification: Human vs Model Distance Comparison",
+    panel_title_prefix="Figure 3 —",
+    exclude_strategies=("locally_typical_0.2", "top_p_0.95"),
+    bins=40,
+    xlim=(0, 1),
+    figsize=(15, 4),
+    human_alpha=1.0,
+    model_alpha=0.1,
+    human_lw=2.8,
+    model_lw=1.5,
+    style="whitegrid",
+    parse_lists=True,
+    list_cols_H=("H_lexical", "H_syntactic", "H_semantic"),
+    list_cols_M=("M_lexical", "M_syntactic", "M_semantic"),
+    show_legend=True,
+):
+    """
+    Plots per-probe histograms comparing Human (H) variability vs Model (M) variability by strategy.
+
+    Inputs:
+      df_H: DataFrame with list columns H_lexical/H_syntactic/H_semantic (strings or lists)
+      df_M: DataFrame with list columns M_lexical/M_syntactic/M_semantic + 'strategy' column
+
+    Notes:
+      - If parse_lists=True, will ast.literal_eval the list columns when they are strings.
+      - Returns (fig, axes).
+    """
+    # Defensive copy (avoid mutating caller dfs)
+    df_H = df_H.copy()
+    df_M = df_M.copy()
+
+    # Parse list columns if needed
+    if parse_lists:
+        for c in list_cols_H:
+            if c in df_H.columns and len(df_H) and isinstance(df_H[c].iloc[0], str):
+                df_H[c] = df_H[c].apply(ast.literal_eval)
+        for c in list_cols_M:
+            if c in df_M.columns and len(df_M) and isinstance(df_M[c].iloc[0], str):
+                df_M[c] = df_M[c].apply(ast.literal_eval)
+
+    # Build pooled human arrays
+    all_H = {
+        "lexical":   np.concatenate(df_H["H_lexical"].values),
+        "syntactic": np.concatenate(df_H["H_syntactic"].values),
+        "semantic":  np.concatenate(df_H["H_semantic"].values),
+    }
+
+    # Build pooled model arrays per strategy
+    all_M = {}
+    for strategy, g in df_M.groupby("strategy"):
+        all_M[strategy] = {
+            "lexical":   np.concatenate(g["M_lexical"].values),
+            "syntactic": np.concatenate(g["M_syntactic"].values),
+            "semantic":  np.concatenate(g["M_semantic"].values),
+        }
+
+    sns.set_style(style)
+
+    probes = [
+        ("lexical",   "Lexical variability"),
+        ("syntactic", "Syntactic variability"),
+        ("semantic",  "Semantic variability"),
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=figsize, sharey=True)
+
+    for ax, (probe, title) in zip(axes, probes):
+        # Human
+        sns.histplot(
+            all_H[probe],
+            bins=bins,
+            stat="probability",
+            element="step",
+            linewidth=human_lw,
+            alpha=human_alpha,
+            color="black",
+            label="Human",
+            ax=ax,
+        )
+
+        # Model strategies
+        for strategy, vals in all_M.items():
+            if strategy in exclude_strategies:
+                continue
+            sns.histplot(
+                vals[probe],
+                bins=bins,
+                stat="probability",
+                element="step",
+                linewidth=model_lw,
+                alpha=model_alpha,
+                label=strategy,
+                ax=ax,
+            )
+
+        ax.set_title(title)
+        ax.set_xlabel("Distance")
+        ax.set_ylabel("Probability")
+        ax.set_xlim(*xlim)
+
+    # Figure title + panel labels
+    fig.suptitle(task_title, fontsize=14, y=1.05)
+    fig.text(0.17, -0.02, "(a) Lexical variability", ha="center", fontsize=11)
+    fig.text(0.50, -0.02, "(b) Syntactic variability", ha="center", fontsize=11)
+    fig.text(0.83, -0.02, "(c) Semantic variability", ha="center", fontsize=11)
+
+    if show_legend:
+        axes[0].legend(fontsize=8)
+
+    plt.tight_layout()
+    return fig, axes
+
